@@ -458,6 +458,18 @@ func RegisterHandlers(router *hertzx.Engine, serverCtx *svc.ServiceContext) {
 		// Update Team of Service Config
 		adminSystemGroupRouter.PUT("/tos_config", adminSystem.UpdateTosConfigHandler(serverCtx))
 
+		// Generate probe agent token
+		adminSystemGroupRouter.POST("/probe_agent/token", adminSystem.GenerateProbeAgentTokenHandler(serverCtx))
+
+		// Query probe agent list
+		adminSystemGroupRouter.GET("/probe_agent/list", adminSystem.QueryProbeAgentListHandler(serverCtx))
+
+		// Update probe agent target
+		adminSystemGroupRouter.PUT("/probe_agent/target", adminSystem.UpdateProbeAgentTargetHandler(serverCtx))
+
+		// Delete probe agent
+		adminSystemGroupRouter.DELETE("/probe_agent", adminSystem.DeleteProbeAgentHandler(serverCtx))
+
 		// Get Verify Code Config
 		adminSystemGroupRouter.GET("/verify_code_config", adminSystem.GetVerifyCodeConfigHandler(serverCtx))
 
@@ -592,6 +604,9 @@ func RegisterHandlers(router *hertzx.Engine, serverCtx *svc.ServiceContext) {
 
 		// Get user subcribe traffic logs
 		adminUserGroupRouter.GET("/subscribe/traffic_logs", adminUser.GetUserSubscribeTrafficLogsHandler(serverCtx))
+
+		// Get user network activity
+		adminUserGroupRouter.GET("/subscribe/network_activity", adminUser.GetUserNetworkActivityHandler(serverCtx))
 	}
 
 	authGroupRouter := router.Group("/v1/auth")

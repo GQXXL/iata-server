@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/perfect-panel/server/internal/model/node"
+	"github.com/perfect-panel/server/internal/model/probeagent"
 	"github.com/perfect-panel/server/internal/model/user"
 	"github.com/perfect-panel/server/internal/svc"
 	"github.com/perfect-panel/server/internal/types"
@@ -108,7 +109,12 @@ func (l *QueryUserSubscribeNodeListLogic) getServers(userSub *user.Subscribe) (u
 	}
 	tags = cleanTags
 
-	l.Debugf("[Generate Subscribe]nodes: %v, NodeTags: %v", nodeIds, tags)
+	// 节点状态页改为全局节点池：不再按订阅绑定的 nodeIds / nodeTags 过滤
+	// 这里直接查询全部启用节点，保证所有用户看到一致的全局节点状态。
+	nodeIds = []int64{}
+	tags = []string{}
+
+	l.Debugf("[Generate Subscribe]nodes(global): %v, NodeTags(global): %v", nodeIds, tags)
 
 	enable := true
 
@@ -138,6 +144,16 @@ func (l *QueryUserSubscribeNodeListLogic) getServers(userSub *user.Subscribe) (u
 			serverMapIds[s.Id] = s
 		}
 
+		ctMap, _ := l.svcCtx.Store.ProbeAgent().GetLatestResultByServerIdsAndISP(l.ctx, serverIds, "ct")
+		cuMap, _ := l.svcCtx.Store.ProbeAgent().GetLatestResultByServerIdsAndISP(l.ctx, serverIds, "cu")
+		cmMap, _ := l.svcCtx.Store.ProbeAgent().GetLatestResultByServerIdsAndISP(l.ctx, serverIds, "cm")
+		agentMap := make(map[int64]*probeagent.Agent, len(serverIds))
+		for _, sid := range serverIds {
+			a, err := l.svcCtx.Store.ProbeAgent().FindAgentByServerId(l.ctx, sid)
+			if err == nil && a != nil {
+				agentMap[sid] = a
+			}
+		}
 		for _, n := range nodes {
 			server := serverMapIds[n.ServerId]
 			if server == nil {
@@ -154,7 +170,55 @@ func (l *QueryUserSubscribeNodeListLogic) getServers(userSub *user.Subscribe) (u
 				Country:   server.Country,
 				City:      server.City,
 				CreatedAt: n.CreatedAt.Unix(),
+				Status:    "offline",
+				Online:    false,
 			}
+
+			latestMs := int64(0)
+			latestTs := time.Time{}
+
+			if r := ctMap[n.ServerId]; r != nil {
+				userSubscribeNode.CtLatencyMs = r.LatencyMs
+				if !r.CheckedAt.IsZero() && r.CheckedAt.After(latestTs) {
+					latestTs = r.CheckedAt
+				}
+			}
+			if r := cuMap[n.ServerId]; r != nil {
+				userSubscribeNode.CuLatencyMs = r.LatencyMs
+				if !r.CheckedAt.IsZero() && r.CheckedAt.After(latestTs) {
+					latestTs = r.CheckedAt
+				}
+			}
+			if r := cmMap[n.ServerId]; r != nil {
+				userSubscribeNode.CmLatencyMs = r.LatencyMs
+				if !r.CheckedAt.IsZero() && r.CheckedAt.After(latestTs) {
+					latestTs = r.CheckedAt
+				}
+			}
+
+			if !latestTs.IsZero() {
+				latestMs = latestTs.UnixMilli()
+				userSubscribeNode.LatencyUpdatedAt = latestMs
+			}
+
+			if a := agentMap[n.ServerId]; a != nil && a.LastSeenAt != nil {
+				if userSubscribeNode.LatencyUpdatedAt == 0 || a.LastSeenAt.UnixMilli() > userSubscribeNode.LatencyUpdatedAt {
+					userSubscribeNode.LatencyUpdatedAt = a.LastSeenAt.UnixMilli()
+				}
+			}
+
+			// 状态与管理端一致：按 servers.last_reported_at 判定
+			if server.LastReportedAt != nil {
+				d := time.Since(*server.LastReportedAt)
+				if d <= 3*time.Minute {
+					userSubscribeNode.Status = "online"
+					userSubscribeNode.Online = true
+				} else if d <= 5*time.Minute {
+					userSubscribeNode.Status = "warning"
+					userSubscribeNode.Online = true
+				}
+			}
+
 			userSubscribeNodes = append(userSubscribeNodes, userSubscribeNode)
 		}
 	}

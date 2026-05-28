@@ -2,7 +2,11 @@ package ticket
 
 import (
 	"context"
+	"fmt"
+	"strconv"
+	"time"
 
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/perfect-panel/server/pkg/constant"
 
 	"github.com/perfect-panel/server/internal/model/ticket"
@@ -62,5 +66,38 @@ func (l *CreateUserTicketFollowLogic) CreateUserTicketFollow(req *types.CreateUs
 		l.Errorw("[CreateUserTicketFollow] Database update error", logger.Field("error", err.Error()), logger.Field("status", ticket.Pending))
 		return errors.Wrapf(xerr.NewErrCode(xerr.DatabaseUpdateError), "update ticket status failed: %v", err.Error())
 	}
+
+	l.notifyAdminsSupportChatFollow(u.Id, req.TicketId, req.Content)
 	return nil
+}
+
+func (l *CreateUserTicketFollowLogic) notifyAdminsSupportChatFollow(userID, ticketID int64, content string) {
+	if l.svcCtx.TelegramBot == nil {
+		return
+	}
+	admins, err := l.svcCtx.Store.User().QueryAdminUsers(l.ctx)
+	if err != nil {
+		l.Errorw("[SupportChatNotify] query admin users failed", logger.Field("error", err.Error()))
+		return
+	}
+
+	msgText := fmt.Sprintf("💬 *Support Chat 新消息*\n\n用户ID: `%d`\nTicket ID: `%d`\n消息: %s\n时间: %s", userID, ticketID, content, time.Now().Format("2006-01-02 15:04:05"))
+
+	for _, admin := range admins {
+		for _, method := range admin.AuthMethods {
+			if method.AuthType != "telegram" || method.AuthIdentifier == "" {
+				continue
+			}
+			chatID, convErr := strconv.ParseInt(method.AuthIdentifier, 10, 64)
+			if convErr != nil {
+				continue
+			}
+			msg := tgbotapi.NewMessage(chatID, msgText)
+			msg.ParseMode = "Markdown"
+			_, sendErr := l.svcCtx.TelegramBot.Send(msg)
+			if sendErr != nil {
+				l.Errorw("[SupportChatNotify] send telegram failed", logger.Field("error", sendErr.Error()), logger.Field("ticketId", ticketID), logger.Field("chatId", chatID))
+			}
+		}
+	}
 }

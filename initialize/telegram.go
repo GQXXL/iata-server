@@ -7,7 +7,6 @@ import (
 	"github.com/perfect-panel/server/pkg/logger"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-	"github.com/perfect-panel/server/internal/config"
 	"github.com/perfect-panel/server/internal/logic/telegram"
 	"github.com/perfect-panel/server/internal/model/auth"
 	"github.com/perfect-panel/server/internal/svc"
@@ -70,14 +69,10 @@ func Telegram(svc *svc.ServiceContext) {
 		logger.Error("[Init Telegram Config] Get Bot Info Error: ", logger.Field("error", err.Error()))
 		return
 	}
-	svc.Config.Telegram = config.Telegram{
-		Enable:        method.Enabled != nil && *method.Enabled,
-		BotID:         user.ID,
-		BotName:       user.UserName,
-		BotToken:      tgConfig.BotToken,
-		EnableNotify:  tgConfig.EnableNotify,
-		WebHookDomain: tgConfig.WebHookDomain,
-	}
+	svc.Config.Telegram.BotID = user.ID
+	svc.Config.Telegram.BotName = user.UserName
+	svc.Config.Telegram.EnableNotify = tgConfig.EnableNotify
+	svc.Config.Telegram.WebHookDomain = tgConfig.WebHookDomain
 	svc.TelegramBot = bot
 
 	logger.Info("[Init Telegram Config] Webhook set success")

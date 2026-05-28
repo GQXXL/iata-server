@@ -3,6 +3,8 @@ package log
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 
 	"github.com/perfect-panel/server/pkg/orm"
 	"gorm.io/gorm"
@@ -27,6 +29,7 @@ type customSystemLogLogicModel interface {
 	FilterSystemLog(ctx context.Context, filter *FilterParams) ([]*SystemLog, int64, error)
 	FindFirstByDateType(ctx context.Context, date string, typ uint8) (*SystemLog, error)
 	FindByDatesType(ctx context.Context, dates []string, typ uint8) ([]*SystemLog, error)
+	FindLatestSubscribeUAByUserSubscribeID(ctx context.Context, userSubscribeId int64) (string, error)
 }
 
 func (m *customSystemLogModel) FilterSystemLog(ctx context.Context, filter *FilterParams) ([]*SystemLog, int64, error) {
@@ -76,6 +79,32 @@ func (m *customSystemLogModel) FindFirstByDateType(ctx context.Context, date str
 		return nil, err
 	}
 	return &data, nil
+}
+
+func (m *customSystemLogModel) FindLatestSubscribeUAByUserSubscribeID(ctx context.Context, userSubscribeId int64) (string, error) {
+	if userSubscribeId <= 0 {
+		return "", nil
+	}
+	needle := fmt.Sprintf("\"user_subscribe_id\":%d", userSubscribeId)
+	var row SystemLog
+	err := m.WithContext(ctx).
+		Model(&SystemLog{}).
+		Where("type = ?", TypeSubscribe.Uint8()).
+		Where("content LIKE ?", "%"+needle+"%").
+		Order("id DESC").
+		Limit(1).
+		Take(&row).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	var content Subscribe
+	if err := content.Unmarshal([]byte(row.Content)); err != nil {
+		return "", nil
+	}
+	return strings.TrimSpace(content.UserAgent), nil
 }
 
 func (m *customSystemLogModel) FindByDatesType(ctx context.Context, dates []string, typ uint8) ([]*SystemLog, error) {

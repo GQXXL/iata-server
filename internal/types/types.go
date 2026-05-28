@@ -2759,16 +2759,23 @@ type UserSubscribeLog struct {
 }
 
 type UserSubscribeNodeInfo struct {
-	Id        int64    `json:"id"`
-	Name      string   `json:"name"`
-	Uuid      string   `json:"uuid"`
-	Protocol  string   `json:"protocol"`
-	Port      uint16   `json:"port"`
-	Address   string   `json:"address"`
-	Tags      []string `json:"tags"`
-	Country   string   `json:"country"`
-	City      string   `json:"city"`
-	CreatedAt int64    `json:"created_at"`
+	Id               int64    `json:"id"`
+	Name             string   `json:"name"`
+	Uuid             string   `json:"uuid"`
+	Protocol         string   `json:"protocol"`
+	Port             uint16   `json:"port"`
+	Address          string   `json:"address"`
+	Tags             []string `json:"tags"`
+	Country          string   `json:"country"`
+	City             string   `json:"city"`
+	CreatedAt        int64    `json:"created_at"`
+	Status           string   `json:"status"`
+	Online           bool     `json:"online"`
+	CtLatencyMs      int64    `json:"ct_latency_ms"`
+	CuLatencyMs      int64    `json:"cu_latency_ms"`
+	CmLatencyMs      int64    `json:"cm_latency_ms"`
+	LatencyUpdatedAt int64    `json:"latency_updated_at"`
+	IntervalSeconds  int      `json:"interval_seconds"`
 }
 
 type UserSubscribeTrafficLog struct {
@@ -2781,6 +2788,53 @@ type UserSubscribeTrafficLog struct {
 	Details     bool   `json:"details"`      // Whether to show detailed traffic
 }
 
+type UserNetworkActivityPush struct {
+	UserId            int64  `json:"user_id"`
+	SubscribeId       int64  `json:"subscribe_id"`
+	UserSubscribeId   int64  `json:"user_subscribe_id"`
+	UserSubscribeUuid string `json:"user_subscribe_uuid"`
+	Domain            string `json:"domain" validate:"required"`
+	ClientIP          string `json:"client_ip"`
+	UserAgent         string `json:"user_agent"`
+	Upload            int64  `json:"upload"`
+	Download          int64  `json:"download"`
+	Timestamp         int64  `json:"timestamp"`
+}
+
+type ServerPushUserNetworkActivityRequest struct {
+	ServerCommon
+	Records []UserNetworkActivityPush `json:"records" validate:"required"`
+}
+
+type GetUserNetworkActivityRequest struct {
+	Page            int    `form:"page"`
+	Size            int    `form:"size"`
+	UserId          int64  `form:"user_id"`
+	SubscribeId     int64  `form:"subscribe_id"`
+	UserSubscribeId int64  `form:"user_subscribe_id"`
+	Domain          string `form:"domain"`
+	StartTime       int64  `form:"start_time"`
+	EndTime         int64  `form:"end_time"`
+}
+
+type UserNetworkActivity struct {
+	Id              int64  `json:"id"`
+	ServerId        int64  `json:"server_id"`
+	UserId          int64  `json:"user_id"`
+	SubscribeId     int64  `json:"subscribe_id"`
+	UserSubscribeId int64  `json:"user_subscribe_id"`
+	Domain          string `json:"domain"`
+	ClientIP        string `json:"client_ip"`
+	UserAgent       string `json:"user_agent"`
+	Upload          int64  `json:"upload"`
+	Download        int64  `json:"download"`
+	Timestamp       int64  `json:"timestamp"`
+}
+
+type GetUserNetworkActivityResponse struct {
+	List  []UserNetworkActivity `json:"list"`
+	Total int64                 `json:"total"`
+}
 type UserTraffic struct {
 	SID      int64 `json:"uid"`
 	Upload   int64 `json:"upload"`
@@ -2868,4 +2922,145 @@ type WithdrawalLog struct {
 	Reason    string `json:"reason,omitempty"`
 	CreatedAt int64  `json:"created_at"`
 	UpdatedAt int64  `json:"updated_at"`
+}
+
+type NodeLatencyMonitorTask struct {
+	Id              int64  `json:"id"`
+	Name            string `json:"name"`
+	MonitorType     string `json:"monitor_type"`
+	Target          string `json:"target"`
+	TargetCt        string `json:"target_ct"`
+	TargetCu        string `json:"target_cu"`
+	TargetCm        string `json:"target_cm"`
+	NodeIds         string `json:"node_ids"`
+	IntervalSeconds int    `json:"interval_seconds"`
+	Enabled         bool   `json:"enabled"`
+	LastRunAt       int64  `json:"last_run_at"`
+	CreatedAt       int64  `json:"created_at"`
+	UpdatedAt       int64  `json:"updated_at"`
+}
+
+type CreateNodeLatencyMonitorTaskRequest struct {
+	Name            string `json:"name" validate:"required"`
+	MonitorType     string `json:"monitor_type"`
+	Target          string `json:"target"`
+	TargetCt        string `json:"target_ct"`
+	TargetCu        string `json:"target_cu"`
+	TargetCm        string `json:"target_cm"`
+	NodeIds         string `json:"node_ids" validate:"required"`
+	IntervalSeconds int    `json:"interval_seconds" validate:"required"`
+	Enabled         bool   `json:"enabled"`
+}
+
+type UpdateNodeLatencyMonitorTaskRequest struct {
+	Id              int64  `json:"id" validate:"required"`
+	Name            string `json:"name" validate:"required"`
+	MonitorType     string `json:"monitor_type"`
+	Target          string `json:"target"`
+	TargetCt        string `json:"target_ct"`
+	TargetCu        string `json:"target_cu"`
+	TargetCm        string `json:"target_cm"`
+	NodeIds         string `json:"node_ids" validate:"required"`
+	IntervalSeconds int    `json:"interval_seconds" validate:"required"`
+	Enabled         bool   `json:"enabled"`
+}
+
+type DeleteNodeLatencyMonitorTaskRequest struct {
+	Id int64 `json:"id" validate:"required"`
+}
+
+type ToggleNodeLatencyMonitorTaskRequest struct {
+	Id      int64 `json:"id" validate:"required"`
+	Enabled bool  `json:"enabled"`
+}
+
+type QueryNodeLatencyMonitorTaskListRequest struct {
+	Page   int    `form:"page"`
+	Size   int    `form:"size"`
+	Search string `form:"search"`
+}
+
+type QueryNodeLatencyMonitorTaskListResponse struct {
+	Total int64                    `json:"total"`
+	List  []NodeLatencyMonitorTask `json:"list"`
+}
+
+type GenerateProbeAgentTokenRequest struct {
+	ServerId int64  `json:"server_id" validate:"required"`
+	Name     string `json:"name"`
+}
+
+type GenerateProbeAgentTokenResponse struct {
+	ServerId int64  `json:"server_id"`
+	Token    string `json:"token"`
+}
+
+type UpdateProbeAgentTargetRequest struct {
+	ServerId        int64  `json:"server_id" validate:"required"`
+	Name            string `json:"name"`
+	TargetCt        string `json:"target_ct"`
+	TargetCu        string `json:"target_cu"`
+	TargetCm        string `json:"target_cm"`
+	Enabled         bool   `json:"enabled"`
+	IntervalSeconds int    `json:"interval_seconds"`
+}
+
+type DeleteProbeAgentRequest struct {
+	ServerId int64 `json:"server_id" validate:"required"`
+}
+
+type ProbeAgentItem struct {
+	ServerId        int64  `json:"server_id"`
+	ServerSort      int    `json:"server_sort"`
+	Name            string `json:"name"`
+	Status          string `json:"status"`
+	Version         string `json:"version"`
+	LastSeenAt      int64  `json:"last_seen_at"`
+	TargetCt        string `json:"target_ct"`
+	TargetCu        string `json:"target_cu"`
+	TargetCm        string `json:"target_cm"`
+	Enabled         bool   `json:"enabled"`
+	IntervalSeconds int    `json:"interval_seconds"`
+}
+
+type QueryProbeAgentListRequest struct {
+	Page int `form:"page"`
+	Size int `form:"size"`
+}
+
+type QueryProbeAgentListResponse struct {
+	Total int64            `json:"total"`
+	List  []ProbeAgentItem `json:"list"`
+}
+
+type ProbeAgentHeartbeatRequest struct {
+	Token   string `json:"token" validate:"required"`
+	Version string `json:"version"`
+}
+
+type ProbeAgentGetConfigRequest struct {
+	Token string `form:"token" validate:"required"`
+}
+
+type ProbeAgentGetConfigResponse struct {
+	ServerId        int64  `json:"server_id"`
+	TargetCt        string `json:"target_ct"`
+	TargetCu        string `json:"target_cu"`
+	TargetCm        string `json:"target_cm"`
+	Enabled         bool   `json:"enabled"`
+	IntervalSeconds int    `json:"interval_seconds"`
+}
+
+type ProbeAgentReportItem struct {
+	ISP       string `json:"isp" validate:"required"`
+	LatencyMs int64  `json:"latency_ms"`
+	Status    string `json:"status"`
+	ErrorMsg  string `json:"error_msg"`
+	ProbeMode string `json:"probe_mode"`
+}
+
+type ProbeAgentReportRequest struct {
+	Token   string                 `json:"token" validate:"required"`
+	Version string                 `json:"version"`
+	Results []ProbeAgentReportItem `json:"results" validate:"required"`
 }

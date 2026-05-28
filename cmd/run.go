@@ -11,8 +11,8 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/perfect-panel/server/pkg/hertzx"
 
 	"github.com/perfect-panel/server/initialize"
 	"github.com/perfect-panel/server/internal"
@@ -82,7 +82,7 @@ func getServers() *service.Group {
 	}
 	conf.MustLoad(startConfigPath, &c)
 	if !c.Debug {
-		hertzx.SetMode(hertzx.ReleaseMode)
+		gin.SetMode(gin.ReleaseMode)
 	}
 	// init logger
 	if err := logger.SetUp(c.Logger); err != nil {
@@ -91,6 +91,7 @@ func getServers() *service.Group {
 
 	// init service context
 	ctx := svc.NewServiceContext(c)
+	initialize.Telegram(ctx)
 	services := service.NewServiceGroup()
 	services.Add(internal.NewService(ctx))
 	services.Add(queue.NewService(ctx))
@@ -102,7 +103,7 @@ func initConfig(c *config.Config) bool {
 	// load config
 	conf.MustLoad(startConfigPath, c)
 	//  check custom config
-	if startConfigPath != "etc/ppanel.yaml" && c.DatabaseConfig().Addr == "" {
+	if startConfigPath != "etc/ppanel.yaml" && c.MySQL.Addr == "" {
 		return true
 	}
 	// check access secret
@@ -117,7 +118,7 @@ func initConfig(c *config.Config) bool {
 		if cfg == nil {
 			return true
 		} else {
-			c.SetDatabaseConfig(*cfg)
+			c.MySQL = cfg
 		}
 
 		// Get environment variables
@@ -135,13 +136,13 @@ func initConfig(c *config.Config) bool {
 		}
 		// save yaml file
 		newConfig := config.File{
-			Host:     c.Host,
-			Port:     c.Port,
-			Debug:    c.Debug,
-			JwtAuth:  c.JwtAuth,
-			Logger:   c.Logger,
-			Database: c.DatabaseConfig(),
-			Redis:    c.Redis,
+			Host:    c.Host,
+			Port:    c.Port,
+			Debug:   c.Debug,
+			JwtAuth: c.JwtAuth,
+			Logger:  c.Logger,
+			MySQL:   c.MySQL,
+			Redis:   c.Redis,
 		}
 		fileData, err := yaml.Marshal(newConfig)
 		if err != nil {

@@ -10,9 +10,12 @@ import (
 	"github.com/perfect-panel/server/internal/model/coupon"
 	"github.com/perfect-panel/server/internal/model/document"
 	"github.com/perfect-panel/server/internal/model/log"
+	"github.com/perfect-panel/server/internal/model/networkactivity"
 	"github.com/perfect-panel/server/internal/model/node"
+	"github.com/perfect-panel/server/internal/model/nodelatency"
 	"github.com/perfect-panel/server/internal/model/order"
 	"github.com/perfect-panel/server/internal/model/payment"
+	"github.com/perfect-panel/server/internal/model/probeagent"
 	"github.com/perfect-panel/server/internal/model/subscribe"
 	"github.com/perfect-panel/server/internal/model/system"
 	"github.com/perfect-panel/server/internal/model/task"
@@ -32,8 +35,11 @@ type Store interface {
 	Document() document.Model
 	Log() log.Model
 	Node() node.Model
+	NetworkActivity() networkactivity.Model
+	NodeLatency() nodelatency.Model
 	Order() order.Model
 	Payment() payment.Model
+	ProbeAgent() probeagent.Model
 	Subscribe() subscribe.Model
 	System() system.Model
 	Task() task.Model
@@ -57,9 +63,12 @@ type GormStore struct {
 	coupon       coupon.Model
 	document     document.Model
 	log          log.Model
-	node         node.Model
-	order        order.Model
-	payment      payment.Model
+	node            node.Model
+	networkActivity networkactivity.Model
+	nodeLatency     nodelatency.Model
+	order           order.Model
+	payment         payment.Model
+	probeAgent      probeagent.Model
 	subscribe    subscribe.Model
 	system       system.Model
 	task         task.Model
@@ -79,9 +88,12 @@ func NewGormStore(db *gorm.DB, rds *redis.Client) *GormStore {
 		coupon:       coupon.NewModel(db, rds),
 		document:     document.NewModel(db, rds),
 		log:          log.NewModel(db),
-		node:         node.NewModel(db, rds),
-		order:        order.NewModel(db, rds),
-		payment:      payment.NewModel(db, rds),
+		node:            node.NewModel(db, rds),
+		networkActivity: networkactivity.NewModel(db),
+		nodeLatency:     nodelatency.NewModel(db),
+		order:           order.NewModel(db, rds),
+		payment:         payment.NewModel(db, rds),
+		probeAgent:      probeagent.NewModel(db),
 		subscribe:    subscribe.NewModel(db, rds),
 		system:       system.NewModel(db, rds),
 		task:         task.NewModel(db),
@@ -123,12 +135,24 @@ func (s *GormStore) Node() node.Model {
 	return s.node
 }
 
+func (s *GormStore) NetworkActivity() networkactivity.Model {
+	return s.networkActivity
+}
+
+func (s *GormStore) NodeLatency() nodelatency.Model {
+	return s.nodeLatency
+}
+
 func (s *GormStore) Order() order.Model {
 	return s.order
 }
 
 func (s *GormStore) Payment() payment.Model {
 	return s.payment
+}
+
+func (s *GormStore) ProbeAgent() probeagent.Model {
+	return s.probeAgent
 }
 
 func (s *GormStore) Subscribe() subscribe.Model {
