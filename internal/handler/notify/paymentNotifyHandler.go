@@ -41,7 +41,7 @@ func PaymentNotifyHandler(svcCtx *svc.ServiceContext) func(c *hertzx.Context) {
 			})
 			if err := l.EPayNotify(req); err != nil {
 				logger.WithContext(c.Request.Context()).Errorf("EPayNotify failed: %v", err.Error())
-				c.String(http.StatusBadRequest, err.Error())
+				c.String(http.StatusBadRequest, "%v", err)
 				return
 			}
 			c.String(http.StatusOK, "%s", "success")
