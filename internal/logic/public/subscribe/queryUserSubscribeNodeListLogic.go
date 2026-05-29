@@ -148,10 +148,15 @@ func (l *QueryUserSubscribeNodeListLogic) getServers(userSub *user.Subscribe) (u
 		cuMap, _ := l.svcCtx.Store.ProbeAgent().GetLatestResultByServerIdsAndISP(l.ctx, serverIds, "cu")
 		cmMap, _ := l.svcCtx.Store.ProbeAgent().GetLatestResultByServerIdsAndISP(l.ctx, serverIds, "cm")
 		agentMap := make(map[int64]*probeagent.Agent, len(serverIds))
+		targetEnabledMap := make(map[int64]bool, len(serverIds))
 		for _, sid := range serverIds {
 			a, err := l.svcCtx.Store.ProbeAgent().FindAgentByServerId(l.ctx, sid)
 			if err == nil && a != nil {
 				agentMap[sid] = a
+			}
+			target, err := l.svcCtx.Store.ProbeAgent().FindTargetByServerId(l.ctx, sid)
+			if err == nil && target != nil {
+				targetEnabledMap[sid] = target.Enabled
 			}
 		}
 		for _, n := range nodes {
@@ -176,34 +181,37 @@ func (l *QueryUserSubscribeNodeListLogic) getServers(userSub *user.Subscribe) (u
 
 			latestMs := int64(0)
 			latestTs := time.Time{}
+			heartbeatEnabled := targetEnabledMap[n.ServerId]
 
-			if r := ctMap[n.ServerId]; r != nil {
-				userSubscribeNode.CtLatencyMs = r.LatencyMs
-				if !r.CheckedAt.IsZero() && r.CheckedAt.After(latestTs) {
-					latestTs = r.CheckedAt
+			if heartbeatEnabled {
+				if r := ctMap[n.ServerId]; r != nil {
+					userSubscribeNode.CtLatencyMs = r.LatencyMs
+					if !r.CheckedAt.IsZero() && r.CheckedAt.After(latestTs) {
+						latestTs = r.CheckedAt
+					}
 				}
-			}
-			if r := cuMap[n.ServerId]; r != nil {
-				userSubscribeNode.CuLatencyMs = r.LatencyMs
-				if !r.CheckedAt.IsZero() && r.CheckedAt.After(latestTs) {
-					latestTs = r.CheckedAt
+				if r := cuMap[n.ServerId]; r != nil {
+					userSubscribeNode.CuLatencyMs = r.LatencyMs
+					if !r.CheckedAt.IsZero() && r.CheckedAt.After(latestTs) {
+						latestTs = r.CheckedAt
+					}
 				}
-			}
-			if r := cmMap[n.ServerId]; r != nil {
-				userSubscribeNode.CmLatencyMs = r.LatencyMs
-				if !r.CheckedAt.IsZero() && r.CheckedAt.After(latestTs) {
-					latestTs = r.CheckedAt
+				if r := cmMap[n.ServerId]; r != nil {
+					userSubscribeNode.CmLatencyMs = r.LatencyMs
+					if !r.CheckedAt.IsZero() && r.CheckedAt.After(latestTs) {
+						latestTs = r.CheckedAt
+					}
 				}
-			}
 
-			if !latestTs.IsZero() {
-				latestMs = latestTs.UnixMilli()
-				userSubscribeNode.LatencyUpdatedAt = latestMs
-			}
+				if !latestTs.IsZero() {
+					latestMs = latestTs.UnixMilli()
+					userSubscribeNode.LatencyUpdatedAt = latestMs
+				}
 
-			if a := agentMap[n.ServerId]; a != nil && a.LastSeenAt != nil {
-				if userSubscribeNode.LatencyUpdatedAt == 0 || a.LastSeenAt.UnixMilli() > userSubscribeNode.LatencyUpdatedAt {
-					userSubscribeNode.LatencyUpdatedAt = a.LastSeenAt.UnixMilli()
+				if a := agentMap[n.ServerId]; a != nil && a.LastSeenAt != nil {
+					if userSubscribeNode.LatencyUpdatedAt == 0 || a.LastSeenAt.UnixMilli() > userSubscribeNode.LatencyUpdatedAt {
+						userSubscribeNode.LatencyUpdatedAt = a.LastSeenAt.UnixMilli()
+					}
 				}
 			}
 
