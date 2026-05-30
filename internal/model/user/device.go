@@ -36,6 +36,20 @@ func (m *customUserModel) FindOneDeviceByIdentifier(ctx context.Context, id stri
 	}
 }
 
+func (m *customUserModel) FindOneDeviceBySubscribeIdentifier(ctx context.Context, userId, subscribeId int64, id string) (*Device, error) {
+	deviceIdKey := fmt.Sprintf("%s%d:%d:%s", cacheUserDeviceNumberPrefix, userId, subscribeId, id)
+	var resp Device
+	err := m.QueryCtx(ctx, &resp, deviceIdKey, func(conn *gorm.DB, v interface{}) error {
+		return conn.Model(&Device{}).Where("user_id = ? AND subscribe_id = ? AND identifier = ?", userId, subscribeId, id).First(&resp).Error
+	})
+	switch {
+	case err == nil:
+		return &resp, nil
+	default:
+		return nil, err
+	}
+}
+
 // QueryDevicePageList  returns a list of records that meet the conditions.
 func (m *customUserModel) QueryDevicePageList(ctx context.Context, userId, subscribeId int64, page, size int) ([]*Device, int64, error) {
 	var list []*Device

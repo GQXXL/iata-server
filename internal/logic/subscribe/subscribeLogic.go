@@ -92,6 +92,8 @@ func (l *SubscribeLogic) Handler(req *types.SubscribeRequest) (resp *types.Subsc
 	defer func() {
 		l.logSubscribeActivity(subscribeStatus, userSubscribe, req)
 	}()
+	// best-effort: mark device online on subscribe pull so admin "online device" can reflect new pulls
+	l.markDeviceOnlineBySubscribe(userSubscribe, req)
 	// find subscribe info
 	subscribeInfo, err := l.svc.Store.Subscribe().FindOne(l.ctx, userSubscribe.SubscribeId)
 	if err != nil {
@@ -223,6 +225,53 @@ func (l *SubscribeLogic) logSubscribeActivity(subscribeStatus bool, userSub *use
 	})
 	if err != nil {
 		l.Errorw("[Generate Subscribe]insert subscribe log error: %v", logger.Field("error", err.Error()))
+	}
+}
+
+// markDeviceOnlineBySubscribe best-effort upsert for /api/subscribe pull chain
+func (l *SubscribeLogic) markDeviceOnlineBySubscribe(userSub *user.Subscribe, req *types.SubscribeRequest) {
+	ua := strings.TrimSpace(req.UA)
+	if ua == "" {
+		ua = strings.TrimSpace(l.request.UserAgent)
+	}
+	if ua == "" {
+		ua = "unknown"
+	}
+
+	ip := strings.TrimSpace(l.request.ClientIP)
+	if ip == "" {
+		ip = "0.0.0.0"
+	}
+
+	identifier := "sub_" + tool.Md5Encode(userSub.Token+"|"+ua+"|"+ip, false)
+
+	exist, err := l.svc.Store.User().FindOneDeviceBySubscribeIdentifier(l.ctx, userSub.UserId, userSub.Id, identifier)
+	if err != nil {
+		// create new device record when not found or query failed
+		create := &user.Device{
+			Ip:          ip,
+			UserId:      userSub.UserId,
+			SubscribeId: userSub.Id,
+			UserAgent:   ua,
+			Identifier:  identifier,
+			Online:      true,
+			Enabled:     true,
+		}
+		if insertErr := l.svc.Store.User().InsertDevice(l.ctx, create); insertErr != nil {
+			l.Errorw("[SubscribeLogic] insert device from subscribe failed", logger.Field("error", insertErr.Error()), logger.Field("user_id", userSub.UserId), logger.Field("subscribe_id", userSub.SubscribeId))
+			return
+		}
+		return
+	}
+
+	exist.UserId = userSub.UserId
+	exist.SubscribeId = userSub.Id
+	exist.Ip = ip
+	exist.UserAgent = ua
+	exist.Online = true
+	exist.Enabled = true
+	if upErr := l.svc.Store.User().UpdateDevice(l.ctx, exist); upErr != nil {
+		l.Errorw("[SubscribeLogic] update device from subscribe failed", logger.Field("error", upErr.Error()), logger.Field("user_id", userSub.UserId), logger.Field("subscribe_id", userSub.SubscribeId), logger.Field("device_id", exist.Id))
 	}
 }
 

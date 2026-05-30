@@ -137,6 +137,7 @@ type customUserLogicModel interface {
 	QueryDevicePageList(ctx context.Context, userid, subscribeId int64, page, size int) ([]*Device, int64, error)
 	UpdateDevice(ctx context.Context, data *Device, tx ...*gorm.DB) error
 	FindOneDeviceByIdentifier(ctx context.Context, id string) (*Device, error)
+	FindOneDeviceBySubscribeIdentifier(ctx context.Context, userId, subscribeId int64, id string) (*Device, error)
 	DeleteDevice(ctx context.Context, id int64, tx ...*gorm.DB) error
 	InsertDevice(ctx context.Context, data *Device, tx ...*gorm.DB) error
 	FindDeviceOnlineRecord(ctx context.Context, userId int64, startTime, endTime string) (*DeviceOnlineRecord, error)

@@ -115,15 +115,16 @@ func (*AuthMethods) TableName() string {
 }
 
 type Device struct {
-	Id         int64     `gorm:"primaryKey"`
-	Ip         string    `gorm:"type:varchar(255);not null;comment:Device IP"`
-	UserId     int64     `gorm:"index:idx_user_id;not null;comment:User ID"`
-	UserAgent  string    `gorm:"default:null;comment:UserAgent."`
-	Identifier string    `gorm:"type:varchar(255);unique;index:idx_identifier;default:'';comment:Device Identifier"`
-	Online     bool      `gorm:"default:false;not null;comment:Online"`
-	Enabled    bool      `gorm:"default:true;not null;comment:Enabled"`
-	CreatedAt  time.Time `gorm:"<-:create;comment:Creation Time"`
-	UpdatedAt  time.Time `gorm:"comment:Update Time"`
+	Id          int64     `gorm:"primaryKey"`
+	Ip          string    `gorm:"type:varchar(255);not null;comment:Device IP"`
+	UserId      int64     `gorm:"index:idx_user_id;not null;comment:User ID"`
+	SubscribeId int64     `gorm:"index:idx_subscribe_id;comment:Subscribe ID"`
+	UserAgent   string    `gorm:"default:null;comment:UserAgent."`
+	Identifier  string    `gorm:"type:varchar(255);index:idx_user_sub_identifier,unique;default:'';comment:Device Identifier"`
+	Online      bool      `gorm:"default:false;not null;comment:Online"`
+	Enabled     bool      `gorm:"default:true;not null;comment:Enabled"`
+	CreatedAt   time.Time `gorm:"<-:create;comment:Creation Time"`
+	UpdatedAt   time.Time `gorm:"comment:Update Time"`
 }
 
 func (*Device) TableName() string {
