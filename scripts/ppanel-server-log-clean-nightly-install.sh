@@ -70,7 +70,7 @@ SHELL=/bin/bash
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # every day at 00:00
-0 0 * * * root . /etc/ppanel/server-log-clean-nightly.env; /usr/local/bin/ppanel-log-clean-nightly.sh
+0 0 * * * root set -a; . /etc/ppanel/server-log-clean-nightly.env; set +a; /usr/local/bin/ppanel-log-clean-nightly.sh
 CRON
 chmod 644 /etc/cron.d/ppanel-log-clean-nightly
 
