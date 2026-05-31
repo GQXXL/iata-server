@@ -27,13 +27,14 @@ func NewFilterServerTrafficLogLogic(ctx context.Context, svcCtx *svc.ServiceCont
 	}
 }
 func (l *FilterServerTrafficLogLogic) FilterServerTrafficLog(req *types.FilterServerTrafficLogRequest) (resp *types.FilterServerTrafficLogResponse, err error) {
-	today := time.Now().Format("2006-01-02")
+	now := time.Now().In(shanghaiLoc)
+	today := now.Format("2006-01-02")
 	var list []types.ServerTrafficLog
 	var total int64
 
 	if req.Date == today || req.Date == "" {
-		now := time.Now()
-		start := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.Local)
+		now := time.Now().In(shanghaiLoc)
+		start := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, shanghaiLoc)
 		end := start.Add(24 * time.Hour)
 
 		serverTraffic, err := l.svcCtx.Store.TrafficLog().QueryServerTrafficRanking(l.ctx, start, end)
@@ -91,7 +92,7 @@ func (l *FilterServerTrafficLogLogic) FilterServerTrafficLog(req *types.FilterSe
 			hasDetails := true
 			if l.svcCtx.Config.Log.AutoClear {
 				last := now.AddDate(0, 0, int(-l.svcCtx.Config.Log.ClearDays))
-				dataTime, err := time.Parse(time.DateOnly, item.Date)
+				dataTime, err := time.ParseInLocation(time.DateOnly, item.Date, shanghaiLoc)
 				if err != nil {
 					l.Errorw("[FilterServerTrafficLog] Parse Date Error", logger.Field("error", err.Error()), logger.Field("date", item.Date))
 				} else {

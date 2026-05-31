@@ -30,7 +30,7 @@ func NewFilterTrafficLogDetailsLogic(ctx context.Context, svcCtx *svc.ServiceCon
 func (l *FilterTrafficLogDetailsLogic) FilterTrafficLogDetails(req *types.FilterTrafficLogDetailsRequest) (resp *types.FilterTrafficLogDetailsResponse, err error) {
 	var start, end time.Time
 	if req.Date != "" {
-		day, err := time.ParseInLocation("2006-01-02", req.Date, time.Local)
+		day, err := time.ParseInLocation("2006-01-02", req.Date, shanghaiLoc)
 		if err != nil {
 			l.Errorw("[FilterTrafficLogDetails] Date Parse Error", logger.Field("error", err.Error()))
 			return nil, errors.Wrapf(xerr.NewErrCode(xerr.InvalidParams), " date parse error: %s", err.Error())
@@ -39,8 +39,8 @@ func (l *FilterTrafficLogDetailsLogic) FilterTrafficLogDetails(req *types.Filter
 		end = day.Add(24 * time.Hour)
 	} else {
 		// query today
-		now := time.Now()
-		start = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+		now := time.Now().In(shanghaiLoc)
+		start = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, shanghaiLoc)
 		end = start.Add(24 * time.Hour)
 	}
 	data, total, err := l.svcCtx.Store.TrafficLog().QueryTrafficLogDetails(l.ctx, &traffic.TrafficLogDetailsFilter{

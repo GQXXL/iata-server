@@ -12,6 +12,14 @@ import (
 	"github.com/pkg/errors"
 )
 
+var shanghaiLoc = func() *time.Location {
+	loc, err := time.LoadLocation("Asia/Shanghai")
+	if err != nil {
+		return time.FixedZone("CST", 8*3600)
+	}
+	return loc
+}()
+
 type FilterUserSubscribeTrafficLogLogic struct {
 	logger.Logger
 	ctx    context.Context
@@ -35,13 +43,14 @@ func (l *FilterUserSubscribeTrafficLogLogic) FilterUserSubscribeTrafficLog(req *
 		req.Page = 1
 	}
 
-	today := time.Now().Format("2006-01-02")
+	now := time.Now().In(shanghaiLoc)
+	today := now.Format("2006-01-02")
 	var list []types.UserSubscribeTrafficLog
 	var total int64
 
 	if req.Date == today || req.Date == "" {
-		now := time.Now()
-		start := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.Local)
+		now := time.Now().In(shanghaiLoc)
+		start := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, shanghaiLoc)
 		end := start.Add(24 * time.Hour)
 
 		userTraffic, err := l.svcCtx.Store.TrafficLog().QueryUserTrafficRanking(l.ctx, start, end)
