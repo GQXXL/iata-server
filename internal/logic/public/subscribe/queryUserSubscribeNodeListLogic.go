@@ -64,36 +64,28 @@ func (l *QueryUserSubscribeNodeListLogic) QueryUserSubscribeNodeList() (resp *ty
 
 func (l *QueryUserSubscribeNodeListLogic) getServers() (userSubscribeNodes []*types.UserSubscribeNodeInfo, err error) {
 	userSubscribeNodes = make([]*types.UserSubscribeNodeInfo, 0)
-	enable := true
 
-	_, nodes, err := l.svcCtx.Store.Node().FilterNodeList(l.ctx, &node.FilterNodeParams{
-		Page:    0,
-		Size:    1000,
-		Enabled: &enable,
-	})
+	// 仅以探测管理（probe_agent）为节点来源
+	_, agents, err := l.svcCtx.Store.ProbeAgent().ListAgents(l.ctx, 1, 10000)
 	if err != nil {
-		l.Errorw("[QueryUserSubscribeNodeList] find node list error", logger.Field("error", err.Error()))
-		return nil, errors.Wrapf(xerr.NewErrCode(xerr.DatabaseQueryError), "find node list error: %v", err.Error())
+		l.Errorw("[QueryUserSubscribeNodeList] query probe agent list error", logger.Field("error", err.Error()))
+		return nil, errors.Wrapf(xerr.NewErrCode(xerr.DatabaseQueryError), "query probe agent list error: %v", err.Error())
 	}
-
-	if len(nodes) == 0 {
+	if len(agents) == 0 {
 		return userSubscribeNodes, nil
 	}
 
-	serverMap := make(map[int64]*node.Server)
-	nodesByID := make(map[int64]*node.Node)
-	serverIDSet := make(map[int64]struct{})
-	for _, n := range nodes {
-		if n == nil {
+	serverIds := make([]int64, 0, len(agents))
+	agentMap := make(map[int64]*probeagent.Agent, len(agents))
+	for _, a := range agents {
+		if a == nil {
 			continue
 		}
-		nodesByID[n.Id] = n
-		serverIDSet[n.ServerId] = struct{}{}
+		serverIds = append(serverIds, a.ServerId)
+		agentMap[a.ServerId] = a
 	}
-
-	serverIds := make([]int64, 0, len(serverIDSet))
-	for sid := range serverIDSet {
-		serverIds = append(serverIds, sid)
+	if len(serverIds) == 0 {
+		return userSubscribeNodes, nil
 	}
 
 	servers, err := l.svcCtx.Store.Node().QueryServerList(l.ctx, serverIds)
@@ -101,6 +93,7 @@ func (l *QueryUserSubscribeNodeListLogic) getServers() (userSubscribeNodes []*ty
 		l.Errorw("[QueryUserSubscribeNodeList] find server details error", logger.Field("error", err.Error()))
 		return nil, errors.Wrapf(xerr.NewErrCode(xerr.DatabaseQueryError), "find server details error: %v", err.Error())
 	}
+	serverMap := make(map[int64]*node.Server, len(servers))
 	for _, s := range servers {
 		serverMap[s.Id] = s
 	}
@@ -109,62 +102,54 @@ func (l *QueryUserSubscribeNodeListLogic) getServers() (userSubscribeNodes []*ty
 	cuMap, _ := l.svcCtx.Store.ProbeAgent().GetLatestResultByServerIdsAndISP(l.ctx, serverIds, "cu")
 	cmMap, _ := l.svcCtx.Store.ProbeAgent().GetLatestResultByServerIdsAndISP(l.ctx, serverIds, "cm")
 
-	agentMap := make(map[int64]*probeagent.Agent, len(serverIds))
-	targetEnabledMap := make(map[int64]bool, len(serverIds))
+	targetMap := make(map[int64]*probeagent.Target, len(serverIds))
 	for _, sid := range serverIds {
-		a, e := l.svcCtx.Store.ProbeAgent().FindAgentByServerId(l.ctx, sid)
-		if e == nil && a != nil {
-			agentMap[sid] = a
-		}
 		target, e := l.svcCtx.Store.ProbeAgent().FindTargetByServerId(l.ctx, sid)
 		if e == nil && target != nil {
-			targetEnabledMap[sid] = target.Enabled
+			targetMap[sid] = target
 		}
 	}
 
-	for _, n := range nodes {
-		if n == nil {
+	for _, sid := range serverIds {
+		a := agentMap[sid]
+		if a == nil {
 			continue
 		}
-		server := serverMap[n.ServerId]
+		server := serverMap[sid]
 		if server == nil {
 			continue
 		}
 
-		displayName := n.Name
-		if a := agentMap[n.ServerId]; a != nil && strings.TrimSpace(a.Name) != "" {
-			displayName = a.Name
-		}
-
 		item := &types.UserSubscribeNodeInfo{
-			Id:        n.Id,
-			Name:      displayName,
-			Protocol:  n.Protocol,
-			Port:      n.Port,
-			Address:   n.Address,
-			Tags:      strings.Split(n.Tags, ","),
+			Id:        sid,
+			Name:      strings.TrimSpace(a.Name), // 仅使用 probe_agent.name
 			Country:   server.Country,
 			City:      server.City,
-			CreatedAt: n.CreatedAt.Unix(),
+			CreatedAt: a.CreatedAt.Unix(),
 			Status:    "offline",
 			Online:    false,
 		}
 
+		target := targetMap[sid]
+		if target != nil {
+			item.IntervalSeconds = target.IntervalSeconds
+		}
+
 		latestTs := time.Time{}
-		if targetEnabledMap[n.ServerId] {
-			if r := ctMap[n.ServerId]; r != nil {
+		if target != nil && target.Enabled {
+			if r := ctMap[sid]; r != nil {
 				item.CtLatencyMs = r.LatencyMs
 				if !r.CheckedAt.IsZero() && r.CheckedAt.After(latestTs) {
 					latestTs = r.CheckedAt
 				}
 			}
-			if r := cuMap[n.ServerId]; r != nil {
+			if r := cuMap[sid]; r != nil {
 				item.CuLatencyMs = r.LatencyMs
 				if !r.CheckedAt.IsZero() && r.CheckedAt.After(latestTs) {
 					latestTs = r.CheckedAt
 				}
 			}
-			if r := cmMap[n.ServerId]; r != nil {
+			if r := cmMap[sid]; r != nil {
 				item.CmLatencyMs = r.LatencyMs
 				if !r.CheckedAt.IsZero() && r.CheckedAt.After(latestTs) {
 					latestTs = r.CheckedAt
@@ -174,7 +159,7 @@ func (l *QueryUserSubscribeNodeListLogic) getServers() (userSubscribeNodes []*ty
 			if !latestTs.IsZero() {
 				item.LatencyUpdatedAt = latestTs.UnixMilli()
 			}
-			if a := agentMap[n.ServerId]; a != nil && a.LastSeenAt != nil {
+			if a.LastSeenAt != nil {
 				if item.LatencyUpdatedAt == 0 || a.LastSeenAt.UnixMilli() > item.LatencyUpdatedAt {
 					item.LatencyUpdatedAt = a.LastSeenAt.UnixMilli()
 				}
@@ -195,41 +180,20 @@ func (l *QueryUserSubscribeNodeListLogic) getServers() (userSubscribeNodes []*ty
 		userSubscribeNodes = append(userSubscribeNodes, item)
 	}
 
-	// 去重：同一节点ID仅保留1条
-	uniq := make(map[int64]*types.UserSubscribeNodeInfo, len(userSubscribeNodes))
-	for _, n := range userSubscribeNodes {
-		if n == nil {
-			continue
-		}
-		uniq[n.Id] = n
-	}
-	userSubscribeNodes = userSubscribeNodes[:0]
-	for _, n := range uniq {
-		userSubscribeNodes = append(userSubscribeNodes, n)
-	}
-
-	// 排序：同步维护/探测管理的服务器排序，其次节点排序
+	// 顺序仅同步探测管理对应服务器顺序（server.sort）
 	sort.SliceStable(userSubscribeNodes, func(i, j int) bool {
-		a := nodesByID[userSubscribeNodes[i].Id]
-		b := nodesByID[userSubscribeNodes[j].Id]
-		if a == nil || b == nil {
-			return userSubscribeNodes[i].Id < userSubscribeNodes[j].Id
-		}
 		sa := 1 << 30
 		sb := 1 << 30
-		if s := serverMap[a.ServerId]; s != nil {
+		if s := serverMap[userSubscribeNodes[i].Id]; s != nil {
 			sa = s.Sort
 		}
-		if s := serverMap[b.ServerId]; s != nil {
+		if s := serverMap[userSubscribeNodes[j].Id]; s != nil {
 			sb = s.Sort
 		}
 		if sa != sb {
 			return sa < sb
 		}
-		if a.Sort != b.Sort {
-			return a.Sort < b.Sort
-		}
-		return a.Id < b.Id
+		return userSubscribeNodes[i].Id < userSubscribeNodes[j].Id
 	})
 
 	return userSubscribeNodes, nil
