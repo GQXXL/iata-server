@@ -35,9 +35,28 @@ func PaymentNotifyHandler(svcCtx *svc.ServiceContext) func(c *hertzx.Context) {
 			if err := c.Request.ParseForm(); err != nil {
 				logger.WithContext(c.Request.Context()).Errorw("[PaymentNotifyHandler] ParseForm failed", logger.Field("error", err.Error()))
 			}
+			
+			params := make(map[string]string)
+			// POST form args (Hertz wrapper check)
+			if c.Request.PostForm != nil {
+				for key, values := range c.Request.PostForm {
+					if len(values) > 0 {
+						params[key] = values[0]
+					}
+				}
+			}
+			// GET query args
+			if c.Request.URL != nil {
+				for key, values := range c.Request.URL.Query() {
+					if len(values) > 0 {
+						params[key] = values[0]
+					}
+				}
+			}
+
 			l := notify.NewEPayNotifyLogic(c.Request.Context(), svcCtx, notify.EPayNotifyMeta{
 				Method: c.Request.Method,
-				Params: formValues(c.Request.Form),
+				Params: params,
 			})
 			if err := l.EPayNotify(req); err != nil {
 				logger.WithContext(c.Request.Context()).Errorf("EPayNotify failed: %v", err.Error())
