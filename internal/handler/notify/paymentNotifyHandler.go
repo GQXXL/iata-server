@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
 
 	"github.com/perfect-panel/server/internal/logic/notify"
 	"github.com/perfect-panel/server/internal/svc"
@@ -27,15 +28,10 @@ func PaymentNotifyHandler(svcCtx *svc.ServiceContext) func(c *hertzx.Context) {
 
 		switch payment.ParsePlatform(platform) {
 		case payment.EPay, payment.CryptoSaaS:
-			req := &types.EPayNotifyRequest{}
-			if err := c.ShouldBind(req); err != nil {
-				result.HttpResult(c, nil, err)
-				return
-			}
 			if err := c.Request.ParseForm(); err != nil {
 				logger.WithContext(c.Request.Context()).Errorw("[PaymentNotifyHandler] ParseForm failed", logger.Field("error", err.Error()))
 			}
-			
+
 			params := make(map[string]string)
 			// POST form args (Hertz wrapper check)
 			if c.Request.PostForm != nil {
@@ -52,6 +48,23 @@ func PaymentNotifyHandler(svcCtx *svc.ServiceContext) func(c *hertzx.Context) {
 						params[key] = values[0]
 					}
 				}
+			}
+
+			pid, err := strconv.ParseInt(params["pid"], 10, 64)
+			if err != nil {
+				logger.WithContext(c.Request.Context()).Errorw("[PaymentNotifyHandler] Parse pid failed", logger.Field("error", err.Error()), logger.Field("pid", params["pid"]))
+			}
+			req := &types.EPayNotifyRequest{
+				Pid:         pid,
+				TradeNo:     params["trade_no"],
+				OutTradeNo:  params["out_trade_no"],
+				Type:        params["type"],
+				Name:        params["name"],
+				Money:       params["money"],
+				TradeStatus: params["trade_status"],
+				Param:       params["param"],
+				Sign:        params["sign"],
+				SignType:    params["sign_type"],
 			}
 
 			l := notify.NewEPayNotifyLogic(c.Request.Context(), svcCtx, notify.EPayNotifyMeta{
