@@ -32,6 +32,12 @@ func (l *QueryOrderDetailLogic) QueryOrderDetail(req *types.QueryOrderDetailRequ
 		l.Errorw("[QueryOrderDetail] Database query error", logger.Field("error", err.Error()), logger.Field("order_no", req.OrderNo))
 		return nil, errors.Wrapf(xerr.NewErrCode(xerr.DatabaseQueryError), "find order error: %v", err.Error())
 	}
+	if closed, e := NewCloseOrderLogic(l.ctx, l.svcCtx).CloseExpiredPendingOrder(orderInfo.OrderNo, orderInfo.Status, orderInfo.CreatedAt); e != nil {
+		l.Errorw("[QueryOrderDetail] Close expired order failed", logger.Field("error", e.Error()), logger.Field("orderNo", orderInfo.OrderNo))
+		return nil, errors.Wrapf(xerr.NewErrCode(xerr.DatabaseUpdateError), "close expired order failed: %v", e.Error())
+	} else if closed {
+		orderInfo.Status = 3
+	}
 	resp = &types.OrderDetail{}
 	tool.DeepCopy(resp, orderInfo)
 	// Prevent commission amount leakage

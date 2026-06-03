@@ -23,6 +23,13 @@ type CloseOrderLogic struct {
 	svcCtx *svc.ServiceContext
 }
 
+func IsPendingOrderExpired(status uint8, createdAt time.Time) bool {
+	if status != 1 || createdAt.IsZero() {
+		return false
+	}
+	return time.Now().After(createdAt.Add(time.Duration(CloseOrderTimeMinutes) * time.Minute))
+}
+
 // NewCloseOrderLogic Close order
 func NewCloseOrderLogic(ctx context.Context, svcCtx *svc.ServiceContext) *CloseOrderLogic {
 	return &CloseOrderLogic{
@@ -151,6 +158,16 @@ func (l *CloseOrderLogic) CloseOrder(req *types.CloseOrderRequest) error {
 		return err
 	}
 	return nil
+}
+
+func (l *CloseOrderLogic) CloseExpiredPendingOrder(orderNo string, status uint8, createdAt time.Time) (bool, error) {
+	if !IsPendingOrderExpired(status, createdAt) {
+		return false, nil
+	}
+	if err := l.CloseOrder(&types.CloseOrderRequest{OrderNo: orderNo}); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // confirmationPayment Determine whether the payment is successful

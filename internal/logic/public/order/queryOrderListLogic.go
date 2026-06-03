@@ -40,6 +40,25 @@ func (l *QueryOrderListLogic) QueryOrderList(req *types.QueryOrderListRequest) (
 		l.Errorw("[QueryOrderListLogic] Query order list failed", logger.Field("error", err.Error()))
 		return nil, errors.Wrapf(xerr.NewErrCode(xerr.DatabaseQueryError), "Query order list failed")
 	}
+	closedAny := false
+	closer := NewCloseOrderLogic(l.ctx, l.svcCtx)
+	for _, item := range data {
+		closed, e := closer.CloseExpiredPendingOrder(item.OrderNo, item.Status, item.CreatedAt)
+		if e != nil {
+			l.Errorw("[QueryOrderListLogic] Close expired order failed", logger.Field("error", e.Error()), logger.Field("orderNo", item.OrderNo))
+			return nil, errors.Wrapf(xerr.NewErrCode(xerr.DatabaseUpdateError), "close expired order failed: %v", e.Error())
+		}
+		if closed {
+			closedAny = true
+		}
+	}
+	if closedAny {
+		total, data, err = l.svcCtx.Store.Order().QueryOrderListByPage(l.ctx, req.Page, req.Size, 0, u.Id, 0, "")
+		if err != nil {
+			l.Errorw("[QueryOrderListLogic] Query order list failed", logger.Field("error", err.Error()))
+			return nil, errors.Wrapf(xerr.NewErrCode(xerr.DatabaseQueryError), "Query order list failed")
+		}
+	}
 	resp = &types.QueryOrderListResponse{
 		Total: total,
 		List:  make([]types.OrderDetail, 0),

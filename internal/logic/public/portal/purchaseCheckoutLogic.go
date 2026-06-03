@@ -165,10 +165,10 @@ func (l *PurchaseCheckoutLogic) PurchaseCheckout(req *types.CheckoutOrderRequest
 }
 
 func (l *PurchaseCheckoutLogic) isPendingOrderExpired(orderInfo *order.Order) bool {
-	if orderInfo == nil || orderInfo.Status != 1 || orderInfo.CreatedAt.IsZero() {
+	if orderInfo == nil {
 		return false
 	}
-	return time.Now().After(orderInfo.CreatedAt.Add(time.Duration(CloseOrderTimeMinutes) * time.Minute))
+	return orderLogic.IsPendingOrderExpired(orderInfo.Status, orderInfo.CreatedAt)
 }
 
 // alipayF2fPayment processes Alipay Face-to-Face payment by generating a QR code

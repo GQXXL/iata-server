@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	orderLogic "github.com/perfect-panel/server/internal/logic/public/order"
 	"github.com/perfect-panel/server/internal/model/order"
 
 	"github.com/perfect-panel/server/pkg/tool"
@@ -45,6 +46,12 @@ func (l *QueryPurchaseOrderLogic) QueryPurchaseOrder(req *types.QueryPurchaseOrd
 	orderInfo, err := l.svcCtx.Store.Order().FindOneByOrderNo(l.ctx, req.OrderNo)
 	if err != nil {
 		return nil, wrapDatabaseError(err)
+	}
+	if closed, e := orderLogic.NewCloseOrderLogic(l.ctx, l.svcCtx).CloseExpiredPendingOrder(orderInfo.OrderNo, orderInfo.Status, orderInfo.CreatedAt); e != nil {
+		l.Errorw("[QueryPurchaseOrder] Close expired order failed", logger.Field("error", e.Error()), logger.Field("orderNo", orderInfo.OrderNo))
+		return nil, errors.Wrapf(xerr.NewErrCode(xerr.DatabaseUpdateError), "close expired order failed: %v", e.Error())
+	} else if closed {
+		orderInfo.Status = 3
 	}
 	// Handle temporary orders if applicable
 	var token string

@@ -3,6 +3,7 @@ package order
 import (
 	"context"
 
+	publicOrder "github.com/perfect-panel/server/internal/logic/public/order"
 	"github.com/perfect-panel/server/internal/svc"
 	"github.com/perfect-panel/server/internal/types"
 	"github.com/perfect-panel/server/pkg/logger"
@@ -31,6 +32,25 @@ func (l *GetOrderListLogic) GetOrderList(req *types.GetOrderListRequest) (resp *
 	if err != nil {
 		l.Errorw("[GetOrderList] Database Error", logger.Field("error", err.Error()))
 		return nil, errors.Wrapf(xerr.NewErrCode(xerr.DatabaseQueryError), "QueryOrderListByPage error: %v", err.Error())
+	}
+	closedAny := false
+	closer := publicOrder.NewCloseOrderLogic(l.ctx, l.svcCtx)
+	for _, item := range list {
+		closed, e := closer.CloseExpiredPendingOrder(item.OrderNo, item.Status, item.CreatedAt)
+		if e != nil {
+			l.Errorw("[GetOrderList] Close expired order failed", logger.Field("error", e.Error()), logger.Field("orderNo", item.OrderNo))
+			return nil, errors.Wrapf(xerr.NewErrCode(xerr.DatabaseUpdateError), "close expired order failed: %v", e.Error())
+		}
+		if closed {
+			closedAny = true
+		}
+	}
+	if closedAny {
+		total, list, err = l.svcCtx.Store.Order().QueryOrderListByPage(l.ctx, int(req.Page), int(req.Size), req.Status, req.UserId, req.SubscribeId, req.Search)
+		if err != nil {
+			l.Errorw("[GetOrderList] Database Error", logger.Field("error", err.Error()))
+			return nil, errors.Wrapf(xerr.NewErrCode(xerr.DatabaseQueryError), "QueryOrderListByPage error: %v", err.Error())
+		}
 	}
 	resp = &types.GetOrderListResponse{}
 	resp.List = make([]types.Order, 0)
