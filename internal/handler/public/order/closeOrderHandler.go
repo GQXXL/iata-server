@@ -13,6 +13,7 @@ func CloseOrderHandler(svcCtx *svc.ServiceContext) func(c *hertzx.Context) {
 	return func(c *hertzx.Context) {
 		var req types.CloseOrderRequest
 		_ = c.ShouldBind(&req)
+		req.Normalize()
 		validateErr := svcCtx.Validate(&req)
 		if validateErr != nil {
 			result.ParamErrorResult(c, validateErr)

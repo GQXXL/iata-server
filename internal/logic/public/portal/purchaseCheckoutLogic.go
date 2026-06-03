@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"time"
 
+	orderLogic "github.com/perfect-panel/server/internal/logic/public/order"
 	"github.com/perfect-panel/server/internal/model/log"
 	"github.com/perfect-panel/server/internal/report"
 	"github.com/perfect-panel/server/internal/repository"
@@ -63,6 +64,20 @@ func (l *PurchaseCheckoutLogic) PurchaseCheckout(req *types.CheckoutOrderRequest
 	if orderInfo.Status != 1 {
 		l.Logger.Error("[PurchaseCheckout] Order status error", logger.Field("status", orderInfo.Status))
 		return nil, errors.Wrapf(xerr.NewErrCode(xerr.OrderStatusError), "order status error: %v", orderInfo.Status)
+	}
+	if l.isPendingOrderExpired(orderInfo) {
+		if err = orderLogic.NewCloseOrderLogic(l.ctx, l.svcCtx).CloseOrder(&types.CloseOrderRequest{OrderNo: orderInfo.OrderNo}); err != nil {
+			l.Errorw("[PurchaseCheckout] Close expired order failed",
+				logger.Field("error", err.Error()),
+				logger.Field("orderNo", orderInfo.OrderNo),
+			)
+			return nil, errors.Wrapf(xerr.NewErrCode(xerr.DatabaseUpdateError), "close expired order error: %v", err.Error())
+		}
+		l.Infow("[PurchaseCheckout] Order expired",
+			logger.Field("orderNo", orderInfo.OrderNo),
+			logger.Field("createdAt", orderInfo.CreatedAt),
+		)
+		return nil, errors.Wrapf(xerr.NewErrCodeMsg(xerr.OrderStatusError, "Order expired"), "order expired")
 	}
 
 	// Retrieve payment method configuration
@@ -147,6 +162,13 @@ func (l *PurchaseCheckoutLogic) PurchaseCheckout(req *types.CheckoutOrderRequest
 		return nil, errors.Wrapf(xerr.NewErrCode(xerr.ERROR), "payment method not found")
 	}
 	return
+}
+
+func (l *PurchaseCheckoutLogic) isPendingOrderExpired(orderInfo *order.Order) bool {
+	if orderInfo == nil || orderInfo.Status != 1 || orderInfo.CreatedAt.IsZero() {
+		return false
+	}
+	return time.Now().After(orderInfo.CreatedAt.Add(time.Duration(CloseOrderTimeMinutes) * time.Minute))
 }
 
 // alipayF2fPayment processes Alipay Face-to-Face payment by generating a QR code

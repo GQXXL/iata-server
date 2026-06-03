@@ -649,7 +649,8 @@ type (
 		OrderNo string `json:"orderNo"`
 	}
 	CloseOrderRequest {
-		OrderNo string `json:"orderNo" validate:"required"`
+		OrderNo      string `json:"orderNo" form:"orderNo" validate:"required"`
+		OrderNoSnake string `json:"order_no,omitempty" form:"order_no,omitempty"`
 	}
 	QueryOrderDetailRequest {
 		OrderNo string `form:"order_no" validate:"required"`
@@ -743,8 +744,10 @@ type (
 		Size int `form:"size"`
 	}
 	CheckoutOrderRequest {
-		OrderNo   string `json:"orderNo"`
-		ReturnUrl string `json:"returnUrl,omitempty"`
+		OrderNo        string `json:"orderNo" form:"orderNo"`
+		OrderNoSnake   string `json:"order_no,omitempty" form:"order_no,omitempty"`
+		ReturnUrl      string `json:"returnUrl,omitempty" form:"returnUrl,omitempty"`
+		ReturnUrlSnake string `json:"return_url,omitempty" form:"return_url,omitempty"`
 	}
 	CheckoutOrderResponse {
 		Type        string         `json:"type"`

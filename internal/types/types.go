@@ -217,8 +217,10 @@ type CheckVerificationCodeRespone struct {
 }
 
 type CheckoutOrderRequest struct {
-	OrderNo   string `json:"orderNo"`
-	ReturnUrl string `json:"returnUrl,omitempty"`
+	OrderNo        string `json:"orderNo" form:"orderNo"`
+	OrderNoSnake   string `json:"order_no,omitempty" form:"order_no,omitempty"`
+	ReturnUrl      string `json:"returnUrl,omitempty" form:"returnUrl,omitempty"`
+	ReturnUrlSnake string `json:"return_url,omitempty" form:"return_url,omitempty"`
 }
 
 type CheckoutOrderResponse struct {
@@ -228,7 +230,23 @@ type CheckoutOrderResponse struct {
 }
 
 type CloseOrderRequest struct {
-	OrderNo string `json:"orderNo" validate:"required"`
+	OrderNo      string `json:"orderNo" form:"orderNo" validate:"required"`
+	OrderNoSnake string `json:"order_no,omitempty" form:"order_no,omitempty"`
+}
+
+func (r *CheckoutOrderRequest) Normalize() {
+	if r.OrderNo == "" {
+		r.OrderNo = r.OrderNoSnake
+	}
+	if r.ReturnUrl == "" {
+		r.ReturnUrl = r.ReturnUrlSnake
+	}
+}
+
+func (r *CloseOrderRequest) Normalize() {
+	if r.OrderNo == "" {
+		r.OrderNo = r.OrderNoSnake
+	}
 }
 
 type CommissionLog struct {

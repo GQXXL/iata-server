@@ -52,15 +52,6 @@ func (l *CloseOrderLogic) CloseOrder(req *types.CloseOrderRequest) error {
 		return nil
 	}
 
-	sub, err := store.Subscribe().FindOne(l.ctx, orderInfo.SubscribeId)
-	if err != nil {
-		l.Errorw("[CloseOrder] Find subscribe info failed",
-			logger.Field("error", err.Error()),
-			logger.Field("subscribeId", orderInfo.SubscribeId),
-		)
-		return nil
-	}
-
 	err = store.InTx(l.ctx, func(txStore repository.Store) error {
 		// update order status
 		err := txStore.Order().UpdateOrderStatus(l.ctx, req.OrderNo, 3)
@@ -71,20 +62,8 @@ func (l *CloseOrderLogic) CloseOrder(req *types.CloseOrderRequest) error {
 			)
 			return err
 		}
-		// If User ID is 0, it means that the order is a guest order and does not need to be refunded, the order can be deleted directly
-		if orderInfo.UserId == 0 {
-			err = txStore.Order().Delete(l.ctx, orderInfo.Id)
-			if err != nil {
-				l.Errorw("[CloseOrder] Delete order failed",
-					logger.Field("error", err.Error()),
-					logger.Field("orderNo", req.OrderNo),
-				)
-				return err
-			}
-			return nil
-		}
 		// refund deduction amount to user deduction balance
-		if orderInfo.GiftAmount > 0 {
+		if orderInfo.UserId > 0 && orderInfo.GiftAmount > 0 {
 			userInfo, err := txStore.User().FindOne(l.ctx, orderInfo.UserId)
 			if err != nil {
 				l.Errorw("[CloseOrder] Find user info failed",
@@ -132,16 +111,36 @@ func (l *CloseOrderLogic) CloseOrder(req *types.CloseOrderRequest) error {
 				)
 				return err
 			}
-			return nil
 		}
-		if sub.Inventory != -1 {
-			sub.Inventory++
-			if e := txStore.Subscribe().Update(l.ctx, sub); e != nil {
-				l.Errorw("[CloseOrder] Restore subscribe inventory failed",
-					logger.Field("error", e.Error()),
-					logger.Field("subscribeId", sub.Id),
+
+		if orderInfo.SubscribeId > 0 {
+			sub, err := txStore.Subscribe().FindOne(l.ctx, orderInfo.SubscribeId)
+			if err != nil {
+				l.Errorw("[CloseOrder] Find subscribe info failed",
+					logger.Field("error", err.Error()),
+					logger.Field("subscribeId", orderInfo.SubscribeId),
 				)
-				return e
+			} else if sub.Inventory != -1 {
+				sub.Inventory++
+				if e := txStore.Subscribe().Update(l.ctx, sub); e != nil {
+					l.Errorw("[CloseOrder] Restore subscribe inventory failed",
+						logger.Field("error", e.Error()),
+						logger.Field("subscribeId", sub.Id),
+					)
+					return e
+				}
+			}
+		}
+
+		// If User ID is 0, it means that the order is a guest order and does not need to be refunded.
+		if orderInfo.UserId == 0 {
+			err = txStore.Order().Delete(l.ctx, orderInfo.Id)
+			if err != nil {
+				l.Errorw("[CloseOrder] Delete order failed",
+					logger.Field("error", err.Error()),
+					logger.Field("orderNo", req.OrderNo),
+				)
+				return err
 			}
 		}
 
