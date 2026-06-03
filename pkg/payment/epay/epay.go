@@ -23,6 +23,7 @@ type Client struct {
 type Order struct {
 	Name      string
 	OrderNo   string
+	Param     string
 	Amount    float64
 	SignType  string
 	NotifyUrl string
@@ -54,6 +55,9 @@ func (c *Client) CreatePayUrl(order Order) string {
 	params.Set("money", tool.FormatFloat(order.Amount, 2))
 	params.Set("notify_url", order.NotifyUrl)
 	params.Set("out_trade_no", order.OrderNo)
+	if order.Param != "" {
+		params.Set("param", order.Param)
+	}
 	params.Set("pid", c.Pid)
 	params.Set("type", c.Type)
 	params.Set("return_url", order.ReturnUrl)
@@ -119,6 +123,9 @@ func (c *Client) structToMap(order Order) map[string]string {
 	result["name"] = order.Name
 	result["notify_url"] = order.NotifyUrl
 	result["out_trade_no"] = order.OrderNo
+	if order.Param != "" {
+		result["param"] = order.Param
+	}
 	result["pid"] = c.Pid
 	result["type"] = c.Type
 	result["return_url"] = order.ReturnUrl

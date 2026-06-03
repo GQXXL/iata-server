@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"strconv"
+	"strings"
 	"time"
 
 	orderLogic "github.com/perfect-panel/server/internal/logic/public/order"
@@ -27,6 +28,7 @@ import (
 	"github.com/perfect-panel/server/pkg/payment/alipay"
 	"github.com/perfect-panel/server/pkg/payment/epay"
 	"github.com/perfect-panel/server/pkg/payment/stripe"
+	"github.com/perfect-panel/server/pkg/tool"
 	"github.com/perfect-panel/server/pkg/xerr"
 	"github.com/pkg/errors"
 )
@@ -328,11 +330,18 @@ func (l *PurchaseCheckoutLogic) epayPayment(config *payment.Payment, info *order
 		notifyUrl = notifyUrl + "/v1/notify/" + config.Platform + "/" + config.Token
 	}
 
+	productName := strings.TrimSpace(l.svcCtx.Config.Site.SiteName)
+	if productName == "" {
+		productName = "product"
+	}
+	paymentOrderNo := tool.GenerateTradeNo()
+
 	// Create payment URL for user redirection
 	url := client.CreatePayUrl(epay.Order{
-		Name:      l.svcCtx.Config.Site.SiteName,
+		Name:      productName,
 		Amount:    amount,
-		OrderNo:   info.OrderNo,
+		OrderNo:   paymentOrderNo,
+		Param:     info.OrderNo,
 		SignType:  "MD5",
 		NotifyUrl: notifyUrl,
 		ReturnUrl: returnUrl,

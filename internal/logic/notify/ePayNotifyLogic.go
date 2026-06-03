@@ -51,10 +51,19 @@ func (l *EPayNotifyLogic) EPayNotify(req *types.EPayNotifyRequest) error {
 		return errors.Wrapf(xerr.NewErrCode(xerr.ERROR), "payment config not found")
 	}
 
-	orderInfo, err := store.Order().FindOneByOrderNo(l.ctx, req.OutTradeNo)
+	orderNo := req.OutTradeNo
+	if req.Param != "" {
+		orderNo = req.Param
+	}
+
+	orderInfo, err := store.Order().FindOneByOrderNo(l.ctx, orderNo)
 	if err != nil {
-		l.Logger.Error("[EPayNotify] Find order failed", logger.Field("error", err.Error()), logger.Field("orderNo", req.OutTradeNo))
-		return errors.Wrapf(xerr.NewErrCode(xerr.OrderNotExist), "order not exist: %v", req.OutTradeNo)
+		l.Logger.Error("[EPayNotify] Find order failed",
+			logger.Field("error", err.Error()),
+			logger.Field("orderNo", orderNo),
+			logger.Field("outTradeNo", req.OutTradeNo),
+		)
+		return errors.Wrapf(xerr.NewErrCode(xerr.OrderNotExist), "order not exist: %v", orderNo)
 	}
 
 	var config payment.EPayConfig
@@ -66,7 +75,8 @@ func (l *EPayNotifyLogic) EPayNotify(req *types.EPayNotifyRequest) error {
 	client := epay.NewClient(config.Pid, config.Url, config.Key, config.Type)
 	if !client.VerifySign(l.meta.Params) && !l.svcCtx.Config.Debug {
 		l.Logger.Error("[EPayNotify] Verify sign failed",
-			logger.Field("orderNo", req.OutTradeNo),
+			logger.Field("orderNo", orderNo),
+			logger.Field("outTradeNo", req.OutTradeNo),
 			logger.Field("receivedParams", l.meta.Params),
 			logger.Field("method", l.meta.Method),
 		)
@@ -74,21 +84,21 @@ func (l *EPayNotifyLogic) EPayNotify(req *types.EPayNotifyRequest) error {
 	}
 
 	if req.TradeStatus != "TRADE_SUCCESS" {
-		l.Logger.Error("[EPayNotify] Trade status is not success", logger.Field("orderNo", req.OutTradeNo), logger.Field("tradeStatus", req.TradeStatus))
+		l.Logger.Error("[EPayNotify] Trade status is not success", logger.Field("orderNo", orderNo), logger.Field("tradeStatus", req.TradeStatus))
 		return nil
 	}
 	if orderInfo.Status == 5 {
 		return nil
 	}
 	// Update order status
-	err = store.Order().UpdateOrderStatus(l.ctx, req.OutTradeNo, 2)
+	err = store.Order().UpdateOrderStatus(l.ctx, orderNo, 2)
 	if err != nil {
-		l.Logger.Error("[EPayNotify] Update order status failed", logger.Field("error", err.Error()), logger.Field("orderNo", req.OutTradeNo))
+		l.Logger.Error("[EPayNotify] Update order status failed", logger.Field("error", err.Error()), logger.Field("orderNo", orderNo))
 		return err
 	}
 	// Create activate order task
 	payload := queueType.ForthwithActivateOrderPayload{
-		OrderNo: req.OutTradeNo,
+		OrderNo: orderNo,
 	}
 	bytes, err := json.Marshal(&payload)
 	if err != nil {
