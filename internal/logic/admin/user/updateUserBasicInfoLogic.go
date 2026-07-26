@@ -122,6 +122,8 @@ func (l *UpdateUserBasicInfoLogic) UpdateUserBasicInfo(req *types.UpdateUserBasi
 	}
 	tool.DeepCopy(userInfo, req)
 	userInfo.OnlyFirstPurchase = &req.OnlyFirstPurchase
+	userInfo.Enable = &req.Enable
+	userInfo.IsAdmin = &req.IsAdmin
 	userInfo.ReferralPercentage = req.ReferralPercentage
 
 	if req.Password != "" {

@@ -33,6 +33,10 @@ func (l *UpdateUserNotifySettingLogic) UpdateUserNotifySetting(req *types.Update
 		return errors.Wrapf(xerr.NewErrCode(xerr.DatabaseQueryError), "Find User Error")
 	}
 	tool.DeepCopy(userInfo, req)
+	userInfo.EnableBalanceNotify = &req.EnableBalanceNotify
+	userInfo.EnableLoginNotify = &req.EnableLoginNotify
+	userInfo.EnableSubscribeNotify = &req.EnableSubscribeNotify
+	userInfo.EnableTradeNotify = &req.EnableTradeNotify
 	err = l.svcCtx.Store.User().Update(l.ctx, userInfo)
 	if err != nil {
 		l.Errorw("[UpdateUserNotifySettingLogic] Update User Error:", logger.Field("err", err.Error()), logger.Field("userId", req.UserId))
