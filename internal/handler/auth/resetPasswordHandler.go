@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/perfect-panel/server/internal/logic/auth"
+	"github.com/perfect-panel/server/internal/middleware"
 	"github.com/perfect-panel/server/internal/svc"
 	"github.com/perfect-panel/server/internal/types"
 	"github.com/perfect-panel/server/pkg/hertzx"
@@ -24,7 +25,19 @@ func ResetPasswordHandler(svcCtx *svc.ServiceContext) func(c *hertzx.Context) {
 			return
 		}
 		// get client ip
-		req.IP = c.ClientIP()
+		req.IP = middleware.PublicClientIP(c)
+		req.UserAgent = c.Request.UserAgent()
+		if err := middleware.GuardPublicRequest(
+			c,
+			svcCtx,
+			"auth_reset_password_email",
+			req.UserAgent,
+			middleware.RateLimitRule{Period: 60, Quota: 5},
+			middleware.RateLimitRule{Period: 3600, Quota: 20},
+		); err != nil {
+			result.HttpResult(c, nil, err)
+			return
+		}
 		if svcCtx.Config.Verify.ResetPasswordVerify {
 			verifyTurns := turnstile.New(turnstile.Config{
 				Secret:  svcCtx.Config.Verify.TurnstileSecret,
@@ -35,6 +48,17 @@ func ResetPasswordHandler(svcCtx *svc.ServiceContext) func(c *hertzx.Context) {
 				result.HttpResult(c, nil, err)
 				return
 			}
+		}
+		if err := middleware.GuardPublicKey(
+			c.Request.Context(),
+			svcCtx,
+			"auth_reset_password_email_target",
+			req.Email,
+			middleware.RateLimitRule{Period: 600, Quota: 5},
+			middleware.RateLimitRule{Period: 3600, Quota: 15},
+		); err != nil {
+			result.HttpResult(c, nil, err)
+			return
 		}
 		l := auth.NewResetPasswordLogic(c.Request.Context(), svcCtx)
 		resp, err := l.ResetPassword(&req)

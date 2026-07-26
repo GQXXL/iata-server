@@ -43,7 +43,7 @@ func (l *ResetPasswordLogic) ResetPassword(req *types.ResetPasswordRequest) (res
 	loginStatus := false
 
 	defer func() {
-		if userInfo.Id != 0 && loginStatus {
+		if userInfo != nil && userInfo.Id != 0 && loginStatus {
 			loginLog := log.Login{
 				Method:    "email",
 				LoginIP:   req.IP,

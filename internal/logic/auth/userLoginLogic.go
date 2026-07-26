@@ -42,7 +42,7 @@ func (l *UserLoginLogic) UserLogin(req *types.UserLoginRequest) (resp *types.Log
 	var userInfo *user.User
 	// Record login status
 	defer func(svcCtx *svc.ServiceContext) {
-		if userInfo.Id != 0 {
+		if userInfo != nil && userInfo.Id != 0 {
 			loginLog := log.Login{
 				Method:    "email",
 				LoginIP:   req.IP,
@@ -68,16 +68,15 @@ func (l *UserLoginLogic) UserLogin(req *types.UserLoginRequest) (resp *types.Log
 
 	userInfo, err = l.svcCtx.Store.User().FindOneByEmail(l.ctx, req.Email)
 
-	if userInfo.DeletedAt.Valid {
-		return nil, errors.Wrapf(xerr.NewErrCode(xerr.UserNotExist), "user email deleted: %v", req.Email)
-	}
-
 	if err != nil {
-		if errors.As(err, &gorm.ErrRecordNotFound) {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.Wrapf(xerr.NewErrCode(xerr.UserNotExist), "user email not exist: %v", req.Email)
 		}
 		logger.WithContext(l.ctx).Error(err)
 		return nil, errors.Wrapf(xerr.NewErrCode(xerr.DatabaseQueryError), "query user info failed: %v", err.Error())
+	}
+	if userInfo == nil || userInfo.DeletedAt.Valid {
+		return nil, errors.Wrapf(xerr.NewErrCode(xerr.UserNotExist), "user email not exist: %v", req.Email)
 	}
 
 	// Verify password

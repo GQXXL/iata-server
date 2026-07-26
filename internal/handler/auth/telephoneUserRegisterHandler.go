@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/perfect-panel/server/internal/logic/auth"
+	"github.com/perfect-panel/server/internal/middleware"
 	"github.com/perfect-panel/server/internal/svc"
 	"github.com/perfect-panel/server/internal/types"
 	"github.com/perfect-panel/server/pkg/hertzx"
@@ -24,8 +25,19 @@ func TelephoneUserRegisterHandler(svcCtx *svc.ServiceContext) func(c *hertzx.Con
 			return
 		}
 		// get client ip
-		req.IP = c.ClientIP()
+		req.IP = middleware.PublicClientIP(c)
 		req.UserAgent = c.Request.UserAgent()
+		if err := middleware.GuardPublicRequest(
+			c,
+			svcCtx,
+			"auth_register_phone",
+			req.UserAgent,
+			middleware.RateLimitRule{Period: 3600, Quota: 3},
+			middleware.RateLimitRule{Period: 86400, Quota: 8},
+		); err != nil {
+			result.HttpResult(c, nil, err)
+			return
+		}
 		if svcCtx.Config.Verify.RegisterVerify {
 			verifyTurns := turnstile.New(turnstile.Config{
 				Secret:  svcCtx.Config.Verify.TurnstileSecret,
@@ -36,6 +48,16 @@ func TelephoneUserRegisterHandler(svcCtx *svc.ServiceContext) func(c *hertzx.Con
 				result.HttpResult(c, nil, err)
 				return
 			}
+		}
+		if err := middleware.GuardPublicKey(
+			c.Request.Context(),
+			svcCtx,
+			"auth_register_phone_target",
+			req.TelephoneAreaCode+":"+req.Telephone,
+			middleware.RateLimitRule{Period: 3600, Quota: 3},
+		); err != nil {
+			result.HttpResult(c, nil, err)
+			return
 		}
 		l := auth.NewTelephoneUserRegisterLogic(c.Request.Context(), svcCtx)
 		resp, err := l.TelephoneUserRegister(&req)

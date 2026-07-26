@@ -2,6 +2,7 @@ package common
 
 import (
 	"github.com/perfect-panel/server/internal/logic/common"
+	"github.com/perfect-panel/server/internal/middleware"
 	"github.com/perfect-panel/server/internal/svc"
 	"github.com/perfect-panel/server/internal/types"
 	"github.com/perfect-panel/server/pkg/hertzx"
@@ -16,6 +17,18 @@ func SendSmsCodeHandler(svcCtx *svc.ServiceContext) func(c *hertzx.Context) {
 		validateErr := svcCtx.Validate(&req)
 		if validateErr != nil {
 			result.ParamErrorResult(c, validateErr)
+			return
+		}
+		if err := middleware.GuardPublicRequest(
+			c,
+			svcCtx,
+			"send_sms_code",
+			"",
+			middleware.RateLimitRule{Period: 60, Quota: 2},
+			middleware.RateLimitRule{Period: 3600, Quota: 6},
+			middleware.RateLimitRule{Period: 86400, Quota: 20},
+		); err != nil {
+			result.HttpResult(c, nil, err)
 			return
 		}
 

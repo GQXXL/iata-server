@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/perfect-panel/server/internal/logic/auth"
+	"github.com/perfect-panel/server/internal/middleware"
 	"github.com/perfect-panel/server/internal/svc"
 	"github.com/perfect-panel/server/internal/types"
 	"github.com/perfect-panel/server/pkg/hertzx"
@@ -19,8 +20,19 @@ func UserRegisterHandler(svcCtx *svc.ServiceContext) func(c *hertzx.Context) {
 		var req types.UserRegisterRequest
 		_ = c.ShouldBind(&req)
 		// get client ip
-		req.IP = c.ClientIP()
+		req.IP = middleware.PublicClientIP(c)
 		req.UserAgent = c.Request.UserAgent()
+		if err := middleware.GuardPublicRequest(
+			c,
+			svcCtx,
+			"auth_register_email",
+			req.UserAgent,
+			middleware.RateLimitRule{Period: 3600, Quota: 5},
+			middleware.RateLimitRule{Period: 86400, Quota: 10},
+		); err != nil {
+			result.HttpResult(c, nil, err)
+			return
+		}
 		if svcCtx.Config.Verify.RegisterVerify {
 			verifyTurns := turnstile.New(turnstile.Config{
 				Secret:  svcCtx.Config.Verify.TurnstileSecret,
@@ -34,6 +46,16 @@ func UserRegisterHandler(svcCtx *svc.ServiceContext) func(c *hertzx.Context) {
 		validateErr := svcCtx.Validate(&req)
 		if validateErr != nil {
 			result.ParamErrorResult(c, validateErr)
+			return
+		}
+		if err := middleware.GuardPublicKey(
+			c.Request.Context(),
+			svcCtx,
+			"auth_register_email_target",
+			req.Email,
+			middleware.RateLimitRule{Period: 3600, Quota: 3},
+		); err != nil {
+			result.HttpResult(c, nil, err)
 			return
 		}
 

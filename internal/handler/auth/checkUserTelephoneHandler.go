@@ -2,6 +2,7 @@ package auth
 
 import (
 	"github.com/perfect-panel/server/internal/logic/auth"
+	"github.com/perfect-panel/server/internal/middleware"
 	"github.com/perfect-panel/server/internal/svc"
 	"github.com/perfect-panel/server/internal/types"
 	"github.com/perfect-panel/server/pkg/hertzx"
@@ -16,6 +17,17 @@ func CheckUserTelephoneHandler(svcCtx *svc.ServiceContext) func(c *hertzx.Contex
 		validateErr := svcCtx.Validate(&req)
 		if validateErr != nil {
 			result.ParamErrorResult(c, validateErr)
+			return
+		}
+		if err := middleware.GuardPublicRequest(
+			c,
+			svcCtx,
+			"auth_check_phone",
+			"",
+			middleware.RateLimitRule{Period: 60, Quota: 60},
+			middleware.RateLimitRule{Period: 3600, Quota: 500},
+		); err != nil {
+			result.HttpResult(c, nil, err)
 			return
 		}
 

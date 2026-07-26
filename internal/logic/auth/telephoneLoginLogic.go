@@ -66,7 +66,7 @@ func (l *TelephoneLoginLogic) TelephoneLogin(req *types.TelephoneLoginRequest, r
 
 	// Record login status
 	defer func(svcCtx *svc.ServiceContext) {
-		if userInfo.Id != 0 {
+		if userInfo != nil && userInfo.Id != 0 {
 			loginLog := log.Login{
 				Method:    "mobile",
 				LoginIP:   ip,
