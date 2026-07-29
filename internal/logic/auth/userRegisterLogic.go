@@ -48,6 +48,10 @@ func (l *UserRegisterLogic) UserRegister(req *types.UserRegisterRequest) (resp *
 		return nil, errors.Wrapf(xerr.NewErrCode(xerr.StopRegister), "stop register")
 	}
 
+	if email.EnableDomainSuffix && !tool.EmailDomainInWhitelist(req.Email, email.DomainSuffixList) {
+		return nil, errors.Wrapf(xerr.NewErrCodeMsg(xerr.InvalidParams, "email domain is not allowed"), "email domain is not allowed: %s", req.Email)
+	}
+
 	if req.Invite == "" {
 		if l.svcCtx.Config.Invite.ForcedInvite {
 			return nil, errors.Wrapf(xerr.NewErrCode(xerr.InviteCodeError), "invite code is required")

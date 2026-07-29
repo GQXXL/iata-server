@@ -11,6 +11,7 @@ import (
 	"github.com/perfect-panel/server/pkg/constant"
 	"github.com/perfect-panel/server/pkg/limit"
 	"github.com/perfect-panel/server/pkg/random"
+	"github.com/perfect-panel/server/pkg/tool"
 	"github.com/pkg/errors"
 	"gorm.io/gorm"
 
@@ -53,10 +54,17 @@ func NewSendEmailCodeLogic(ctx context.Context, svcCtx *svc.ServiceContext) *Sen
 }
 
 func (l *SendEmailCodeLogic) SendEmailCode(req *types.SendCodeRequest) (resp *types.SendCodeResponse, err error) {
+	verifyType := constant.ParseVerifyType(req.Type)
+	if verifyType == constant.Register &&
+		l.svcCtx.Config.Email.EnableDomainSuffix &&
+		!tool.EmailDomainInWhitelist(req.Email, l.svcCtx.Config.Email.DomainSuffixList) {
+		return nil, errors.Wrapf(xerr.NewErrCodeMsg(xerr.InvalidParams, "email domain is not allowed"), "email domain is not allowed: %s", req.Email)
+	}
+
 	// Check if there is Redis in the code
-	cacheKey := fmt.Sprintf("%s:%s:%s", config.AuthCodeCacheKey, constant.ParseVerifyType(req.Type), req.Email)
+	cacheKey := fmt.Sprintf("%s:%s:%s", config.AuthCodeCacheKey, verifyType, req.Email)
 	// Check if the limit is exceeded of current request
-	limiter := limit.NewPeriodLimit(60, 1, l.svcCtx.Redis, fmt.Sprintf("%s:%s:%s", config.SendIntervalKeyPrefix, "email", constant.ParseVerifyType(req.Type)))
+	limiter := limit.NewPeriodLimit(60, 1, l.svcCtx.Redis, fmt.Sprintf("%s:%s:%s", config.SendIntervalKeyPrefix, "email", verifyType))
 	permit, err := limiter.Take(req.Email)
 	if err != nil {
 		return nil, errors.Wrapf(xerr.NewErrCode(xerr.ERROR), "Failed to take limit")
@@ -65,7 +73,7 @@ func (l *SendEmailCodeLogic) SendEmailCode(req *types.SendCodeRequest) (resp *ty
 		return nil, errors.Wrapf(xerr.NewErrCode(xerr.TooManyRequests), "send email too many requests")
 	}
 	// Check if the limit is exceeded of today
-	permit, err = l.svcCtx.AuthLimiter.Take(fmt.Sprintf("%s:%s:%s", "email", constant.ParseVerifyType(req.Type), req.Email))
+	permit, err = l.svcCtx.AuthLimiter.Take(fmt.Sprintf("%s:%s:%s", "email", verifyType, req.Email))
 	if err != nil {
 		return nil, errors.Wrapf(xerr.NewErrCode(xerr.ERROR), "Failed to take limit")
 	}
@@ -76,9 +84,9 @@ func (l *SendEmailCodeLogic) SendEmailCode(req *types.SendCodeRequest) (resp *ty
 	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, errors.Wrapf(xerr.NewErrCode(xerr.DatabaseQueryError), "FindUserAuthMethodByOpenID error")
 	}
-	if constant.ParseVerifyType(req.Type) == constant.Register && m.Id > 0 {
+	if verifyType == constant.Register && m.Id > 0 {
 		return nil, errors.Wrapf(xerr.NewErrCode(xerr.UserExist), "mobile already bind")
-	} else if constant.ParseVerifyType(req.Type) == constant.Security && m.Id == 0 {
+	} else if verifyType == constant.Security && m.Id == 0 {
 		return nil, errors.Wrapf(xerr.NewErrCode(xerr.UserNotExist), "mobile not bind")
 	}
 
